@@ -1,5 +1,7 @@
 # TikTube
 
+Download: [TikTube.exe](https://github.com/TiiTime/TikTube/releases/latest/download/TikTube.exe)
+
 [Zur Vorstellung auf der Tii-Seite](https://tiitime.github.io/Tii/?lang=de#tiktube)
 
 ## Deutsch
