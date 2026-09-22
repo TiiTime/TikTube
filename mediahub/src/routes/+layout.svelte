@@ -6,7 +6,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import "../app.css";
-  import { feedUrl, fitFeed, hideFeed, nudgeFeed, openFeed, openLoginWindow, resizeShell } from "$lib/feed";
+  import { applyPlaybackQuality, feedUrl, fitFeed, hideFeed, nudgeFeed, openFeed, openLoginWindow, resizeShell } from "$lib/feed";
   import { getSettings } from "$lib/api";
   import { t } from "$lib/i18n";
   import { defaultSettings, session } from "$lib/session.svelte";
@@ -14,6 +14,8 @@
   let { children } = $props();
 
   let feedErr = $state("");
+  let settingsOpen = $state(false);
+  let quality = $state("1080");
 
   const lang = $derived(session.settings.language);
   const path = $derived($page.url.pathname);
@@ -39,7 +41,7 @@
 
   async function syncFeed() {
     if (!desktop) return;
-    if (!onFeed) {
+    if (!onFeed || settingsOpen) {
       await hideFeed();
       return;
     }
@@ -48,6 +50,7 @@
       await resizeShell();
       await openFeed(feedUrl(session.platform, session.surface));
       await fitFeed();
+      await applyPlaybackQuality(quality);
     } catch (error) {
       feedErr = error instanceof Error ? error.message : String(error);
     }
@@ -57,6 +60,7 @@
     session.platform;
     session.surface;
     path;
+    settingsOpen;
     void syncFeed();
   });
 
@@ -71,6 +75,8 @@
       applyDomAttrs();
       session.youtubeLoggedIn = localStorage.getItem("mh-yt") === "1";
       session.tiktokLoggedIn = localStorage.getItem("mh-tt") === "1";
+      const saved = localStorage.getItem("mh-quality");
+      if (saved === "720" || saved === "1080" || saved === "1440") quality = saved;
     })();
     if (!desktop) return;
     let stopResize: (() => void) | undefined;
@@ -116,11 +122,22 @@
     if (path !== "/") void goto("/");
   }
 
-  function signIn() {
+  function signInPlatform(platform: "youtube" | "tiktok") {
     feedErr = "";
-    void openLoginWindow(session.platform).catch((error) => {
+    void openLoginWindow(platform).catch((error) => {
       feedErr = error instanceof Error ? error.message : String(error);
     });
+  }
+
+  function onQuality(event: Event) {
+    const next = (event.currentTarget as HTMLSelectElement).value;
+    if (next !== "720" && next !== "1080" && next !== "1440") return;
+    quality = next;
+  }
+
+  function saveQuality() {
+    localStorage.setItem("mh-quality", quality);
+    void applyPlaybackQuality(quality);
   }
 
 </script>
@@ -156,7 +173,22 @@
         aria-label={session.tiktokLoggedIn ? "TikTok angemeldet" : "TikTok nicht angemeldet"}
       ></span>
     </div>
-    <button type="button" class="login" onclick={signIn}>Anmelden</button>
+    <div class="end">
+      <button
+        type="button"
+        class="gear"
+        aria-label="Einstellungen"
+        aria-pressed={settingsOpen}
+        onclick={() => (settingsOpen = !settingsOpen)}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.22-1.14.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.64.22l2.39-.96c.49.4 1.04.72 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.22 1.14-.54 1.63-.94l2.39.96c.24.1.51 0 .64-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"
+          />
+        </svg>
+      </button>
+    </div>
   </header>
 
   {#if feedErr}
@@ -164,7 +196,47 @@
   {/if}
 
   <main class="main">
-    {#if !onFeed || !desktop || feedErr}
+    {#if settingsOpen}
+      <section class="settings">
+        <h2>Einstellungen</h2>
+        <label>
+          Videoqualität
+          <select value={quality} onchange={onQuality}>
+            <option value="720">720p</option>
+            <option value="1080">1080p</option>
+            <option value="1440">2K</option>
+          </select>
+        </label>
+        <p>Gilt für YouTube und TikTok. 2K nur, wenn das Video diese Stufe hat.</p>
+        <button type="button" class="login settings-login" onclick={saveQuality}>Speichern</button>
+        <div class="account">
+          <p class="account-name">
+            YouTube
+            <span
+              class="dot"
+              class:on={session.youtubeLoggedIn}
+              class:off={!session.youtubeLoggedIn}
+              role="status"
+              aria-label={session.youtubeLoggedIn ? "YouTube angemeldet" : "YouTube nicht angemeldet"}
+            ></span>
+          </p>
+          <button type="button" class="login settings-login" onclick={() => signInPlatform("youtube")}>Anmelden</button>
+        </div>
+        <div class="account">
+          <p class="account-name">
+            TikTok
+            <span
+              class="dot"
+              class:on={session.tiktokLoggedIn}
+              class:off={!session.tiktokLoggedIn}
+              role="status"
+              aria-label={session.tiktokLoggedIn ? "TikTok angemeldet" : "TikTok nicht angemeldet"}
+            ></span>
+          </p>
+          <button type="button" class="login settings-login" onclick={() => signInPlatform("tiktok")}>Anmelden</button>
+        </div>
+      </section>
+    {:else if !onFeed || !desktop || feedErr}
       {@render children()}
     {/if}
   </main>
@@ -215,13 +287,92 @@
     border-color: transparent;
   }
 
-  .top button.login {
+  .end {
     margin-left: auto;
-    font-size: 11px;
-    padding: 0.15em 0.45em;
-    border-color: var(--line);
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  .top button.gear {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    border: 1px solid var(--line);
+    border-radius: 999px;
     color: var(--paper);
     background: transparent;
+    outline-offset: 0;
+  }
+
+  .top button.gear[aria-pressed="true"] {
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+
+  .settings {
+    max-width: 28rem;
+    margin: 1.4rem auto;
+    padding: 0 1rem 2rem;
+    color: var(--paper);
+  }
+
+  .settings h2 {
+    margin: 0 0 1rem;
+    font-size: 1.2rem;
+  }
+
+  .settings label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.92rem;
+  }
+
+  .settings select {
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #111;
+    color: var(--paper);
+  }
+
+  .settings p {
+    color: var(--steel);
+    font-size: 0.85rem;
+  }
+
+  .settings-login {
+    margin-top: 0.2rem;
+    font-size: 11px;
+    padding: 0.15em 0.45em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--paper);
+    background: transparent;
+  }
+
+  .account {
+    margin-top: 1.35rem;
+  }
+
+  .account-name {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 0.45rem;
+    color: var(--paper);
+    font-size: 1rem;
+  }
+
+  .dot.off {
+    background: #e23b3b;
   }
 
   .dot {

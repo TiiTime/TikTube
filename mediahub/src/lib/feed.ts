@@ -96,6 +96,11 @@ export function openLoginWindow(platform: "youtube" | "tiktok"): Promise<void> {
   return invoke("open_login", { platform });
 }
 
+export function applyPlaybackQuality(quality: string): Promise<void> {
+  if (!isTauri()) return Promise.resolve();
+  return invoke("set_playback_quality", { quality });
+}
+
 export function nudgeFeed(direction: number): Promise<void> {
   if (!isTauri()) return Promise.resolve();
   return invoke("nudge_feed", { direction });

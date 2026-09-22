@@ -22,6 +22,45 @@ const PLAYER_SCRIPT: &str = r##"
   }
   if (window.__mhReady) return;
   window.__mhReady = true;
+  window.__mhQuality = "1080";
+  const applyQuality = () => {
+    const q = window.__mhQuality || "1080";
+    if (location.hostname.includes("youtube")) {
+      const name = q === "1440" ? "hd1440" : q === "720" ? "hd720" : "hd1080";
+      const player = document.getElementById("movie_player");
+      if (player && player.setPlaybackQualityRange) {
+        try { player.setPlaybackQualityRange(name, name); } catch (e) {}
+      }
+      if (player && player.setPlaybackQuality) {
+        try { player.setPlaybackQuality(name); } catch (e) {}
+      }
+    }
+    if (location.hostname.includes("tiktok")) {
+      const want = q === "1440" ? ["1440", "1080", "720"] : q === "1080" ? ["1080", "720"] : ["720"];
+      const nodes = [...document.querySelectorAll("button, [role='menuitem']")];
+      for (const label of want) {
+        const el = nodes.find((node) => {
+          const text = (node.innerText || "").trim().toLowerCase();
+          return text === label + "p" || text === label;
+        });
+        if (!el) continue;
+        const box = el.getBoundingClientRect();
+        if (box.width < 8 || box.height < 8) continue;
+        const key = label + ":" + (document.querySelector("video") || {}).currentSrc;
+        if (window.__mhQualityPick === key) return;
+        window.__mhQualityPick = key;
+        el.click();
+        return;
+      }
+    }
+  };
+  window.__mhSetQuality = (q) => {
+    if (q !== "720" && q !== "1080" && q !== "1440") return;
+    window.__mhQuality = q;
+    window.__mhQualityPick = "";
+    applyQuality();
+  };
+  setInterval(applyQuality, 1500);
   window.__mhStep = (dir) => {
     const now = Date.now();
     if (now - (window.__mhNav || 0) < 420) return;
@@ -252,6 +291,18 @@ pub async fn show_feed(app: AppHandle, url: String) -> Result<(), String> {
     let mut current = FEED_URL.lock().map_err(|_| "Player gesperrt.".to_string())?;
     *current = url;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn set_playback_quality(app: AppHandle, quality: String) -> Result<(), String> {
+    if quality != "720" && quality != "1080" && quality != "1440" {
+        return Err("Unbekannte Qualität.".into());
+    }
+    let Some(view) = app.get_webview("feed") else {
+        return Ok(());
+    };
+    view.eval(format!("window.__mhSetQuality && window.__mhSetQuality('{quality}')"))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

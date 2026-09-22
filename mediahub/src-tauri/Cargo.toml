@@ -1,6 +1,6 @@
 [package]
 name = "mediahub"
-version = "0.1.0"
+version = "0.1.1"
 description = "Leichte TikTube-Desktop-App für YouTube und TikTok"
 authors = ["TikTube"]
 edition = "2021"

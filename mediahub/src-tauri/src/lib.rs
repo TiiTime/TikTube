@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use model::{canonical_item, validate_secret, Account, Accounts, LocalMedia, MediaItem, Settings};
 use tauri::Manager;
-use viewer::{nudge_feed, open_login, show_feed};
+use viewer::{nudge_feed, open_login, set_playback_quality, show_feed};
 
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
@@ -271,6 +271,7 @@ pub fn run() {
             open_on_platform,
             show_feed,
             nudge_feed,
+            set_playback_quality,
             open_login
         ])
         .run(tauri::generate_context!())
